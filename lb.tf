@@ -1,0 +1,61 @@
+resource "azurerm_public_ip" "lb_public_ip" {
+  #for each it pupose is to loop intial value var.instance two value
+  name                =  "${local.name_prefix}-lb-ip" #gopal-public-ip
+  resource_group_name = azurerm_resource_group.myrg.name       
+  location            = azurerm_resource_group.myrg.location
+  allocation_method   = "Static"
+  sku = "Standard" #basic #premium
+  tags = local.project_tags
+}
+
+#lets create the lb
+resource "azurerm_lb" "web_lb" {
+  name                = "${local.name_prefix}-lb"
+  location            = azurerm_resource_group.myrg.location
+  resource_group_name = azurerm_resource_group.myrg.name 
+
+  frontend_ip_configuration {
+    name                 = "PublicIPAddress"
+    public_ip_address_id = azurerm_public_ip.lb_public_ip.id
+  }
+}
+#backendpool
+resource "azurerm_lb_backend_address_pool" "web_lb_pool" {
+  loadbalancer_id = azurerm_lb.web_lb.id
+  name            = "${local.name_prefix}-lb-pool"
+}
+
+#we will create the probes they are line doing health checkup
+resource "azurerm_lb_probe" "web_lb_probe" {
+  loadbalancer_id = azurerm_lb.web_lb.id 
+  name = "${local.name_prefix}-lb-probe"
+  protocol = "Tcp"
+  port = 80 #the lb will going to ping your application port 80 every 30 second
+  //request_path = "/var/www/html/index.html"
+  interval_in_seconds = 30
+  number_of_probes = 2 #2 times if it dont respond it will stop sending the traffic to that particular instance
+}
+
+#rules 
+resource "azurerm_lb_rule" "web_lb_rule" {
+  loadbalancer_id = azurerm_lb.web_lb.id 
+  name = "${local.name_prefix}-lb-rule"
+  protocol = "Tcp"
+  frontend_port = 80 #lb port
+  backend_port = 80 #instance port
+  frontend_ip_configuration_name = azurerm_lb.web_lb.frontend_ip_configuration[0].name
+  backend_address_pool_ids = [azurerm_lb_backend_address_pool.web_lb_pool.id]
+  probe_id = azurerm_lb_probe.web_lb_probe.id 
+}
+
+#lets attach nic card with your backpool
+resource "azurerm_network_interface_backend_address_pool_association" "nic_lb_association" {
+    for_each = var.instance
+  network_interface_id    = azurerm_network_interface.web_nic[each.key].id
+  ip_configuration_name   = azurerm_network_interface.web_nic[each.key].ip_configuration[0].name
+backend_address_pool_id = azurerm_lb_backend_address_pool.web_lb_pool.id
+}
+
+output "lb_public_ip" {
+  value = azurerm_public_ip.lb_public_ip.ip_address
+}

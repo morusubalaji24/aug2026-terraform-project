@@ -1,0 +1,35 @@
+resource "azurerm_network_security_group" "web_nsg" {
+  name                = "${local.name_prefix}-nsg"
+  location            = azurerm_resource_group.myrg.location
+  resource_group_name = azurerm_resource_group.myrg.name
+
+  tags = local.project_tags
+}
+##this nsg need to be mapped with whom subnet
+resource "azurerm_subnet_network_security_group_association" "web_subnet_nsg_association" {
+  subnet_id                 = azurerm_subnet.morusu-subnet.id           #change it to your subnet refrence block
+  network_security_group_id = azurerm_network_security_group.web_nsg.id #change it to your refrence block
+}
+
+locals {
+  web_nsg_rule = {  #named expression
+    "110" : "22", #expression on key value format seprated priority and port number
+    "120" : "80",
+    "130" : "443",
+  }
+}
+resource "azurerm_network_security_rule" "web_nsg" {
+  for_each                    = local.web_nsg_rule
+  name                        = "Rule_port_${each.key}" #Rule_port_110
+  priority                    = each.key                #110
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = each.value #22
+  source_address_prefix       = "*"        #0.0.0.0/0
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.myrg.name
+  network_security_group_name = azurerm_network_security_group.web_nsg.name
+}
+
