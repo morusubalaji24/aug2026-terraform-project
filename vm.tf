@@ -3,7 +3,7 @@ resource "azurerm_linux_virtual_machine" "web_vm" {
   name                = "${local.name_prefix}-${each.key}vm"
   location            = azurerm_resource_group.myrg.location
   resource_group_name = azurerm_resource_group.myrg.name
-  size                = var.vm_instance_size["production"]
+  size                = var.vm_instance_size["development"]
   admin_username      = "azureuser"
   network_interface_ids = [
     azurerm_network_interface.web_nic[each.key].id, #public ip private ip and nsg
